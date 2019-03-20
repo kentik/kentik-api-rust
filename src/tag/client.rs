@@ -1,16 +1,9 @@
-use std::fmt::{self, Display};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use crossbeam_channel::*;
 use log::error;
 use super::{Request, Response};
-use crate::{Client as ApiClient};
-
-#[derive(Debug)]
-pub enum Error {
-    Timeout,
-    API(String)
-}
+use crate::{Client as ApiClient, Error};
 
 pub struct Client {
     sender: Sender<(String, Request)>,
@@ -40,9 +33,8 @@ impl Client {
 fn poll(rx: Receiver<(String, Request)>, c: ApiClient) -> Result<(), Error> {
     while let Ok((column, request)) = rx.recv() {
         match c.update_populators(&column, &request) {
-            Ok(Response::Success{..})  => (),
-            Ok(Response::Error{error}) => error!("tag API error {:#?}", error),
-            Err(e)                     => error!("request error {:#?}", e),
+            Ok(Response{..}) => (),
+            Err(e)           => error!("request error {:#?}", e),
         }
     }
 
@@ -57,21 +49,12 @@ impl<T> From<SendTimeoutError<T>> for Error {
 
 impl From<Box<dyn std::error::Error>> for Error {
     fn from(err: Box<dyn std::error::Error>) -> Self {
-        Error::API(err.to_string())
+        Error::Other(err.to_string())
     }
 }
 
 impl From<Box<dyn std::any::Any + Send>> for Error {
     fn from(err: Box<dyn std::any::Any + Send>) -> Self {
-        Error::API(format!("{:#?}", err))
+        Error::Other(format!("{:#?}", err))
     }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{:#?}", self)
-    }
-}
-
-impl std::error::Error for Error {
 }

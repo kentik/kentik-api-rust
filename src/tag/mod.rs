@@ -123,10 +123,9 @@ pub struct Delete {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum Response {
-    Success { message: String, guid: String },
-    Error   { error:   String               },
+pub struct Response {
+    message: String,
+    guid:    String,
 }
 
 #[cfg(test)]

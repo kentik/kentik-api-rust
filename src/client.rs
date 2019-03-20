@@ -1,11 +1,11 @@
-use std::error::Error;
 use std::fmt::Display;
 use std::str::FromStr;
-use reqwest::{Client as HttpClient, RequestBuilder, Proxy};
+use reqwest::{Client as HttpClient, StatusCode, Proxy};
 use reqwest::header::HeaderMap;
 use serde::{Serialize, Deserialize};
-use serde::de::{self, Deserializer};
+use serde::de::{self, DeserializeOwned, Deserializer};
 use serde_derive::{Deserialize, Serialize};
+use crate::Error;
 use crate::tag::{Request, Response};
 
 pub struct Client {
@@ -21,13 +21,6 @@ pub struct Device {
     pub name:   String,
     #[serde(rename = "device_type")]
     pub r#type: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
-pub enum DeviceWrapper {
-    Device(Device),
-    Error(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,16 +41,8 @@ pub struct Dimension {
     pub internal:     bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
-pub enum DimensionWrapper {
-    #[serde(rename = "customDimension")]
-    Dimension(Dimension),
-    Error(String),
-}
-
 impl Client {
-    pub fn new(email: &str, token: &str, endpoint: &str, proxy: Option<&str>) -> Result<Self, Box<Error>> {
+    pub fn new(email: &str, token: &str, endpoint: &str, proxy: Option<&str>) -> Result<Self, Error> {
         let mut headers = HeaderMap::new();
         headers.insert("X-CH-Auth-Email",     email.parse()?);
         headers.insert("X-CH-Auth-API-Token", token.parse()?);
@@ -75,32 +60,67 @@ impl Client {
         })
     }
 
-    pub fn get_device_by_name(&self, name: &str) -> Result<DeviceWrapper, Box<Error>> {
+    pub fn get_device_by_name(&self, name: &str) -> Result<Device, Error> {
         let url = format!("{}/api/internal/device/{}", self.endpoint, name);
-        Ok(self.get(&url).send()?.json()?)
+
+        #[derive(Serialize, Deserialize, Debug)]
+        struct Wrapper {
+            device: Device,
+        }
+
+        Ok(self.get::<Wrapper>(&url)?.device)
     }
 
-    pub fn get_custom_dimensions(&self) -> Result<Dimensions, Box<Error>> {
+    pub fn get_custom_dimensions(&self) -> Result<Dimensions, Error> {
         let url = format!("{}/api/internal/customdimensions", self.endpoint);
-        Ok(self.get(&url).send()?.json()?)
+        self.get(&url)
     }
 
-    pub fn add_custom_dimension(&self, d: &Dimension) -> Result<DimensionWrapper, Box<Error>> {
+    pub fn add_custom_dimension(&self, d: &Dimension) -> Result<Dimension, Error> {
         let url = format!("{}/api/internal/customdimension", self.endpoint);
-        Ok(self.post(&url, d).send()?.json()?)
+
+        #[derive(Serialize, Deserialize, Debug)]
+        struct Wrapper {
+            #[serde(rename = "customDimension")]
+            dimension: Dimension,
+        }
+
+        Ok(self.post::<_, Wrapper>(&url, d)?.dimension)
     }
 
-    pub fn update_populators(&self, column: &str, r: &Request) -> Result<Response, Box<Error>> {
+    pub fn update_populators(&self, column: &str, r: &Request) -> Result<Response, Error> {
         let url = format!("{}/api/internal/batch/customdimensions/{}/populators", self.endpoint, column);
-        Ok(self.post(&url, r).send()?.json()?)
+        self.post(&url, r)
     }
 
-    fn get(&self, url: &str) -> RequestBuilder {
-        self.client.get(url)
+    fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T, Error> {
+        response(self.client.get(url).send()?)
     }
 
-    fn post<T: Serialize>(&self, url: &str, body: &T) -> RequestBuilder {
-        self.client.post(url).json(body)
+    fn post<T: Serialize, U: DeserializeOwned>(&self, url: &str, body: &T) -> Result<U, Error> {
+        response(self.client.post(url).json(body).send()?)
+    }
+}
+
+fn response<T: DeserializeOwned>(mut r: reqwest::Response) -> Result<T, Error> {
+    let status = r.status();
+
+    let mut error = || {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            error: String,
+        }
+
+        match r.json::<Wrapper>() {
+            Ok(w)  => Error::API(w.error, status.as_u16()),
+            Err(_) => Error::Status(status.as_u16()),
+        }
+    };
+
+    match status {
+        _ if status.is_success() => Ok(r.json()?),
+        StatusCode::UNAUTHORIZED => Err(Error::Auth),
+        _                        => Err(error()),
     }
 }
 
