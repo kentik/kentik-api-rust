@@ -1,9 +1,10 @@
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use crossbeam_channel::*;
-use log::error;
+use log::{debug, error};
 use super::{Request, Response};
 use crate::{Client as ApiClient, Error};
+use Error::*;
 
 pub struct Client {
     sender: Sender<(String, Request)>,
@@ -33,8 +34,9 @@ impl Client {
 fn poll(rx: Receiver<(String, Request)>, c: ApiClient) -> Result<(), Error> {
     while let Ok((column, request)) = rx.recv() {
         match c.update_populators(&column, &request) {
-            Ok(Response{..}) => (),
-            Err(e)           => error!("request error {:#?}", e),
+            Ok(Response{guid, ..}) => debug!("submitted: {}", guid),
+            Err(App(e, _))         => error!("tag API error {}", e),
+            Err(e)                 => error!("request error {}", e),
         }
     }
 

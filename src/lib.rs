@@ -11,7 +11,7 @@ pub use client::Client;
 #[derive(Debug)]
 pub enum Error {
     Auth,
-    API(String, u16),
+    App(String, u16),
     Status(u16),
     Timeout,
     Other(String),

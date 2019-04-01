@@ -13,17 +13,8 @@ fn main() -> Result<(), Box<Error>> {
     });
 
     let client = Client::new(&email, &token, &endpoint, None)?;
-
-    let r = client.add_custom_dimension(&Dimension{
-        name:         "c_will_test_00".to_owned(),
-        display_name: "A test column".to_owned(),
-        r#type:       "string".to_owned(),
-        ..Default::default()
-    })?;
-    println!("{:#?}", r);
-
-    let r = client.get_custom_dimensions()?;
-    println!("{:#?}", r);
+    let device = client.get_device_by_name("istio_test")?;
+    println!("{:#?}", device);
 
     Ok(())
 }

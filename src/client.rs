@@ -1,5 +1,7 @@
 use std::fmt::Display;
 use std::str::FromStr;
+use backoff::{ExponentialBackoff, Operation};
+use log::debug;
 use reqwest::{Client as HttpClient, StatusCode, Proxy};
 use reqwest::header::HeaderMap;
 use serde::{Serialize, Deserialize};
@@ -7,6 +9,8 @@ use serde::de::{self, DeserializeOwned, Deserializer};
 use serde_derive::{Deserialize, Serialize};
 use crate::Error;
 use crate::tag::{Request, Response};
+
+const MAX_RETRIES: u64 = 3;
 
 pub struct Client {
     client:   HttpClient,
@@ -94,15 +98,44 @@ impl Client {
     }
 
     fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T, Error> {
-        response(self.client.get(url).send()?)
+        retry(|n| send(self.client.get(url)).map_err(|err| {
+            debug!("GET {} #{} failed: {}", url, n, err);
+            err
+        }))
     }
 
     fn post<T: Serialize, U: DeserializeOwned>(&self, url: &str, body: &T) -> Result<U, Error> {
-        response(self.client.post(url).json(body).send()?)
+        retry(|n| send(self.client.post(url).json(body)).map_err(|err| {
+            debug!("POST {} #{} failed: {}", url, n, err);
+            err
+        }))
     }
 }
 
-fn response<T: DeserializeOwned>(mut r: reqwest::Response) -> Result<T, Error> {
+fn retry<T>(mut op: impl FnMut(u64) -> Result<T, Error>) -> Result<T, Error> {
+    let mut backoff = ExponentialBackoff::default();
+    let mut attempt = 0;
+
+    let mut task = || op(attempt).map_err(|err| {
+        attempt += 1;
+
+        if attempt >= MAX_RETRIES {
+            return backoff::Error::Permanent(err);
+        }
+
+        match err {
+            Error::Auth              => backoff::Error::Permanent(err),
+            Error::App(_, 300...499) => backoff::Error::Permanent(err),
+            Error::Status(300...499) => backoff::Error::Permanent(err),
+            _                        => backoff::Error::Transient(err),
+        }
+    });
+
+    Ok(task.retry(&mut backoff)?)
+}
+
+fn send<T: DeserializeOwned>(r: reqwest::RequestBuilder) -> Result<T, Error> {
+    let mut r  = r.send()?;
     let status = r.status();
 
     let mut error = || {
@@ -112,8 +145,8 @@ fn response<T: DeserializeOwned>(mut r: reqwest::Response) -> Result<T, Error> {
         }
 
         match r.json::<Wrapper>() {
-            Ok(w)  => Error::API(w.error, status.as_u16()),
-            Err(_) => Error::Status(status.as_u16()),
+            Ok(w)  => Error::App(w.error, status.into()),
+            Err(_) => Error::Status(status.into()),
         }
     };
 
@@ -131,4 +164,13 @@ fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 {
     let s = String::deserialize(deserializer)?;
     T::from_str(&s).map_err(de::Error::custom)
+}
+
+impl From<backoff::Error<Error>> for Error {
+    fn from(err: backoff::Error<Error>) -> Self {
+        match err {
+            backoff::Error::Permanent(e) => e,
+            backoff::Error::Transient(e) => e,
+        }
+    }
 }
