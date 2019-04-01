@@ -1,5 +1,3 @@
-#![feature(test)]
-
 use std::fmt::{self, Display};
 use reqwest;
 
