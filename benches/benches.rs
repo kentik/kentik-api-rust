@@ -1,4 +1,4 @@
-use rkapi::tag::*;
+use kentik_api::tag::*;
 use criterion::*;
 use serde_json;
 

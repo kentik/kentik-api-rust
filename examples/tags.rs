@@ -2,8 +2,8 @@ use std::env;
 use std::error::Error;
 use std::time::Duration;
 use env_logger;
-use rkapi::client::*;
-use rkapi::tag::{*, client::{Client as TagClient}};
+use kentik_api::client::*;
+use kentik_api::tag::{*, client::{Client as TagClient}};
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();

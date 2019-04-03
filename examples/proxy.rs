@@ -1,7 +1,7 @@
 use std::env;
 use std::error::Error;
 use env_logger;
-use rkapi::client::*;
+use kentik_api::client::*;
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();
@@ -9,14 +9,15 @@ fn main() -> Result<(), Box<Error>> {
     let email    = env::var("EMAIL").expect("env var EMAIL");
     let token    = env::var("TOKEN").expect("env var TOKEN");
     let endpoint = env::var("ENDPOINT").unwrap_or("https://api.our1.kentik.com".to_string());
-    let proxy    = env::var("PROXY").unwrap_or("http://localhost:8888".to_string());
+    let proxy    = env::var("PROXY").ok();
+    let proxy    = proxy.as_ref().map(String::as_str);
 
-    let client = Client::new(&email, &token, &endpoint, Some(&proxy))?;
+    let client = Client::new(&email, &token, &endpoint, proxy)?;
 
     let r = client.add_custom_dimension(&Dimension{
         name:         "c_will_test_00".to_owned(),
         display_name: "A test column".to_owned(),
-        r#type:       "string".to_owned(),
+        kind:         "string".to_owned(),
         ..Default::default()
     })?;
     println!("{:#?}", r);

@@ -1,7 +1,7 @@
 use std::env;
 use std::error::Error;
 use env_logger;
-use rkapi::client::*;
+use kentik_api::client::*;
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();

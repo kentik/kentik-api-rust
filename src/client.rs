@@ -6,7 +6,7 @@ use reqwest::{Client as HttpClient, StatusCode, Proxy};
 use reqwest::header::HeaderMap;
 use serde::{Serialize, Deserialize};
 use serde::de::{self, DeserializeOwned, Deserializer};
-use serde_derive::{Deserialize, Serialize};
+use serde::ser::Serializer;
 use crate::Error;
 use crate::tag::{Request, Response};
 
@@ -17,14 +17,14 @@ pub struct Client {
     endpoint: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct Device {
-    #[serde(deserialize_with = "from_str")]
-    pub id:     u64,
+    #[serde(deserialize_with = "from_str", serialize_with = "to_str")]
+    pub id:   u64,
     #[serde(rename = "device_name")]
-    pub name:   String,
+    pub name: String,
     #[serde(rename = "device_type")]
-    pub r#type: String,
+    pub kind: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -33,12 +33,13 @@ pub struct Dimensions {
     pub dimensions: Vec<Dimension>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Eq, PartialEq, Serialize, Deserialize, Debug, Default)]
 pub struct Dimension {
     pub id:           u64,
     pub name:         String,
     pub display_name: String,
-    pub r#type:       String,
+    #[serde(rename = "type")]
+    pub kind:         String,
     #[serde(default, rename = "is_bulk")]
     pub bulk:         bool,
     #[serde(default)]
@@ -164,6 +165,10 @@ fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 {
     let s = String::deserialize(deserializer)?;
     T::from_str(&s).map_err(de::Error::custom)
+}
+
+fn to_str<T: Display, S: Serializer>(v: &T, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(&v.to_string())
 }
 
 impl From<backoff::Error<Error>> for Error {

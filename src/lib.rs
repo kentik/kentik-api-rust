@@ -6,7 +6,7 @@ pub mod tag;
 
 pub use client::Client;
 
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub enum Error {
     Auth,
     App(String, u16),
