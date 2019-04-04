@@ -2,6 +2,7 @@ use std::env;
 use std::error::Error;
 use env_logger;
 use kentik_api::client::*;
+use kentik_api::core::Dimension;
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();

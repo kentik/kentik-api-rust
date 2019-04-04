@@ -2,6 +2,8 @@ use std::fmt::{self, Display};
 use reqwest;
 
 pub mod client;
+pub mod core;
+pub mod dns;
 pub mod tag;
 
 pub use client::Client;

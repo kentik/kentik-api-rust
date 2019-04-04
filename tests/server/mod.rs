@@ -1,8 +1,8 @@
-#![allow(non_snake_case)]
+#![allow(dead_code, non_snake_case)]
 
 use std::marker::PhantomData;
 use std::mem::replace;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::thread;
 use std::time::{Instant, Duration};
 use actix_rt::System;
@@ -17,7 +17,7 @@ use futures::{Async, Future, Poll, Stream};
 use futures::future::{ok, FutureResult};
 use rand::prelude::*;
 use serde::{Serialize, Deserialize};
-use kentik_api::client::{Device, Dimension};
+use kentik_api::core::{Device, Dimension};
 
 pub struct Server {
     address:  SocketAddr,
@@ -35,12 +35,12 @@ pub struct Request {
     pub ts:     Instant,
 }
 
-pub fn start() -> Server {
+pub fn start<T: ToSocketAddrs + Send + 'static>(addrs: T, email: Option<&str>, token: Option<&str>) -> Server {
     let (tx0, rx0) = bounded(1);
     let (tx1, rx1) = unbounded();
 
-    let email = random();
-    let token = random();
+    let email = email.map(str::to_owned).unwrap_or_else(random);
+    let token = token.map(str::to_owned).unwrap_or_else(random);
 
     let auth  = Auth {
         email: email.clone(),
@@ -53,10 +53,10 @@ pub fn start() -> Server {
             App::new()
                 .chain(Inspector::new(tx1.clone()))
                 .wrap(auth.clone())
-                .service(resource("/dns").route(post().to_async(dns_batch)))
                 .service(get_device)
                 .service(resource("/api/internal/customdimension").route(post().to(add_custom_dimension)))
-        }).bind("127.0.0.1:0").unwrap();
+                .service(resource("/dns").route(post().to_async(dns_batch)))
+        }).bind(addrs).unwrap();
         let address = server.addrs()[0];
         let server  = server.start();
         tx0.send((address, server)).unwrap();
@@ -83,8 +83,8 @@ impl Server {
         format!("http://{}{}", self.address, path)
     }
 
-    pub fn request(&self) -> Option<Request> {
-        self.requests.recv_timeout(Duration::from_secs(1)).ok()
+    pub fn request(&self, timeout: Duration) -> Result<Request, RecvTimeoutError> {
+        self.requests.recv_timeout(timeout)
     }
 
     pub fn stop(&self) {

@@ -2,8 +2,7 @@ use std::env;
 use std::error::Error;
 use std::time::Duration;
 use env_logger;
-use kentik_api::client::*;
-use kentik_api::tag::{*, client::{Client as TagClient}};
+use kentik_api::tag::*;
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();
@@ -14,8 +13,8 @@ fn main() -> Result<(), Box<Error>> {
         "https://api.our1.kentik.com".to_string()
     });
 
-    let client = Client::new(&email, &token, &endpoint, None)?;
-    let client = TagClient::new(client);
+    let client = kentik_api::Client::new(&email, &token, &endpoint, None)?;
+    let client = Client::new(client);
 
     let users = vec![
         ("alice", "10.0.0.16"),

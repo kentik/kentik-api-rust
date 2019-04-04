@@ -1,11 +1,13 @@
 mod server;
 
-use kentik_api::{Client, Error, client::*};
+use std::time::Duration;
+use kentik_api::{Client, Error};
+use kentik_api::core::*;
 use server::Server;
 
 #[test]
 fn auth_required() {
-    let server = server::start();
+    let server = server::start("127.0.0.1:0", None, None);
 
     let (mut email, token) = server.auth();
     email += "-invalid";
@@ -34,10 +36,12 @@ fn app_error() {
 #[test]
 fn retry_request() {
     let (client, server) = pair();
+    let timeout = Duration::from_secs(1);
+
     let result = client.get_device_by_name("503");
 
     for _ in 0..3 {
-        let path = server.request().unwrap().path;
+        let path = server.request(timeout).unwrap().path;
         assert_eq!("/api/internal/device/503", path)
     }
 
@@ -59,7 +63,7 @@ fn get_device_by_name() {
 }
 
 fn pair() -> (Client, Server) {
-    let server = server::start();
+    let server = server::start("127.0.0.1:0", None, None);
     let (email, token) = server.auth();
     let endpoint = server.url("");
     let client = Client::new(&email, &token, &endpoint, None).unwrap();

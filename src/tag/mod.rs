@@ -3,6 +3,8 @@ use serde_derive::{Deserialize, Serialize};
 pub mod client;
 pub mod change;
 
+pub use client::Client;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Request {
     pub replace_all: bool,
