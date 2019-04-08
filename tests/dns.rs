@@ -45,13 +45,15 @@ fn send_dns_batch() {
     }
 
     assert!(request.ts.duration_since(start) >= interval);
+
+    assert!(server.request(interval * 2).is_err());
 }
 
 fn pair() -> (Client, Server) {
     let server = server::start("127.0.0.1:0", None, None);
     let (email, token) = server.auth();
-    let endpoint = server.url("/dns");
-    let client = kentik_api::Client::new(&email, &token, &endpoint, None).unwrap();
+    let endpoint = server.url("");
+    let client = kentik_api::AsyncClient::new(&email, &token, &endpoint, None).unwrap();
     let client = Client::new(client);
     (client, server)
 }

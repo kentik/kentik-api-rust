@@ -244,7 +244,7 @@ impl<S> Stream for Body<S> where S: Stream<Item = Bytes, Error = PayloadError> {
         let poll = self.stream.poll()?;
         if let Async::Ready(ready) = &poll {
             match ready {
-                Some(bytes) => { self.chunks.send(bytes.clone()).unwrap(); },
+                Some(bytes) => { self.chunks.try_send(bytes.clone()).ok(); },
                 None        => { replace(&mut self.chunks, bounded(1).0);  },
             };
         }
@@ -262,6 +262,7 @@ enum DeviceWrapper {
 #[get("/api/internal/device/{name}")]
 fn get_device(name: Path<String>) -> impl Responder {
     match name.as_str() {
+        "403" => return HttpResponse::Forbidden().finish(),
         "404" => return HttpResponse::NotFound().finish(),
         "503" => return HttpResponse::ServiceUnavailable().finish(),
         _     => (),

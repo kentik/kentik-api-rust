@@ -49,6 +49,19 @@ fn retry_request() {
 }
 
 #[test]
+fn no_retry_on_4xx() {
+    let (client, server) = pair();
+    let timeout = Duration::from_millis(100);
+
+    let result = client.get_device_by_name("403");
+
+    assert!(server.request(timeout).is_ok());
+    assert!(server.request(timeout).is_err());
+
+    assert_eq!(Err(Error::Status(403)), result);
+}
+
+#[test]
 fn get_device_by_name() {
     let (client, _server) = pair();
 

@@ -46,13 +46,6 @@ impl Client {
         }), self.retries)
     }
 
-    pub fn post_raw<T: DeserializeOwned>(&self, url: &str, body: &[u8]) -> Result<T, Error> {
-        retry(|n| send(self.client.post(url).body(body.to_vec())).map_err(|err| {
-            debug!("POST {} #{} failed: {}", url, n, err);
-            err
-        }), self.retries)
-    }
-
     pub fn endpoint(&self) -> &str {
         &self.endpoint
     }
@@ -69,12 +62,7 @@ fn retry<T>(mut op: impl FnMut(u64) -> Result<T, Error>, retries: u64) -> Result
             return backoff::Error::Permanent(err);
         }
 
-        match err {
-            Error::Auth              => backoff::Error::Permanent(err),
-            Error::App(_, 300...499) => backoff::Error::Permanent(err),
-            Error::Status(300...499) => backoff::Error::Permanent(err),
-            _                        => backoff::Error::Transient(err),
-        }
+        err.into_backoff()
     });
 
     Ok(task.retry(&mut backoff)?)
@@ -100,14 +88,5 @@ fn send<T: DeserializeOwned>(r: reqwest::RequestBuilder) -> Result<T, Error> {
         _ if status.is_success() => Ok(r.json()?),
         StatusCode::UNAUTHORIZED => Err(Error::Auth),
         _                        => Err(error()),
-    }
-}
-
-impl From<backoff::Error<Error>> for Error {
-    fn from(err: backoff::Error<Error>) -> Self {
-        match err {
-            backoff::Error::Permanent(e) => e,
-            backoff::Error::Transient(e) => e,
-        }
     }
 }
