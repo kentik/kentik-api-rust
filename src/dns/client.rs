@@ -1,3 +1,4 @@
+use std::mem::swap;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use crossbeam_channel::*;
@@ -12,7 +13,7 @@ use Error::{App, Empty};
 use RecvTimeoutError::*;
 
 pub struct Client {
-    sender: Sender<Response>,
+    sender: Sender<Vec<Response>>,
     thread: JoinHandle<Result<(), Error>>,
 }
 
@@ -26,8 +27,8 @@ impl Client {
         }
     }
 
-    pub fn send(&self, r: Response, d: Duration) -> Result<(), Error> {
-        Ok(self.sender.send_timeout(r, d)?)
+    pub fn send(&self, rs: Vec<Response>, d: Duration) -> Result<(), Error> {
+        Ok(self.sender.send_timeout(rs, d)?)
     }
 
     pub fn stop(self) -> Result<(), Error> {
@@ -36,24 +37,33 @@ impl Client {
     }
 }
 
-fn poll(rx: Receiver<Response>, c: AsyncClient) -> Result<(), Error> {
-    let mut vec = Vec::with_capacity(1024);
+fn poll(rx: Receiver<Vec<Response>>, c: AsyncClient) -> Result<(), Error> {
+    let mut buf = Vec::with_capacity(1024);
     let mut rt  = Runtime::new()?;
     let timeout = Duration::from_secs(1);
     let ticker  = tick(timeout);
 
     loop {
-        let mut s = Serializer::new_named(&mut vec);
+        let mut encode = |rs: Vec<Response>| -> Result<(), Error> {
+            let mut s = Serializer::new_named(&mut buf);
+            rs.into_iter().map(|r: Response| -> Result<(), Error> {
+                Ok(r.serialize(&mut s)?)
+            }).collect::<Result<_, _>>()
+        };
 
         match rx.recv_timeout(timeout) {
-            Ok(r)             => r.serialize(&mut s)?,
+            Ok(rs)            => encode(rs)?,
             Err(Timeout)      => (),
             Err(Disconnected) => break,
         };
 
-        let flush = ticker.try_recv().is_ok() && !vec.is_empty();
+        let flush = ticker.try_recv().is_ok() && !buf.is_empty();
+        let bytes = buf.len();
 
-        if flush || vec.len() >= 1_000_000 {
+        if flush || bytes >= 1_000_000 {
+            let mut vec = Vec::with_capacity(bytes);
+            swap(&mut buf, &mut vec);
+
             rt.spawn(c.post("/dns", vec).then(|r| {
                 match r {
                     Ok(()) | Err(Empty) => debug!("submitted batch"),
@@ -62,7 +72,6 @@ fn poll(rx: Receiver<Response>, c: AsyncClient) -> Result<(), Error> {
                 }
                 ok(())
             }));
-            vec = Vec::with_capacity(1024);
         }
     }
 
