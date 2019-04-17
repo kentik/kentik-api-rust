@@ -15,11 +15,15 @@ rmp-serde         = "0.13.7"
 serde             = "1.0.89"
 serde_derive      = "1.0.89"
 serde_bytes       = "0.10.5"
-tokio             = "0.1.18"
 
 [dependencies.reqwest]
 version  = "0.9.13"
 features = ["rustls-tls"]
+default-features = false
+
+[dependencies.tokio]
+version  = "0.1.18"
+features = ["rt-full", "tcp"]
 default-features = false
 
 [dev-dependencies]
