@@ -17,7 +17,7 @@ fn send_dns_batch() {
         let host = format!("10.0.0.{}", n).parse::<Ipv4Addr>().unwrap();
         let ip   = format!("10.1.0.{}", n).parse::<Ipv4Addr>().unwrap();
 
-        let response = Response {
+        Response {
             question: Question {
                 name: name,
                 host: host.octets().to_vec(),
@@ -28,12 +28,10 @@ fn send_dns_batch() {
                 ip:    ip.octets().to_vec(),
                 ttl:   n,
             }],
-        };
-
-        client.send(response.clone(), Duration::from_millis(1)).unwrap();
-
-        response
+        }
     }).collect::<Vec<_>>();
+
+    client.send(records.clone(), Duration::from_millis(1)).unwrap();
 
     let interval = Duration::from_secs(1);
     let request = server.request(interval * 2).unwrap();
