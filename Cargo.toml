@@ -1,6 +1,6 @@
 [package]
 name    = "kentik-api"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Will <will@kentik.com>"]
 edition = "2018"
 
@@ -12,14 +12,16 @@ futures           = "0.1.26"
 futures-retry     = "0.3.0"
 log               = "0.4.6"
 rmp-serde         = "0.13.7"
-serde             = "1.0.89"
-serde_derive      = "1.0.89"
-serde_bytes       = "0.10.5"
+serde_bytes       = "0.11.1"
 
 [dependencies.reqwest]
-version  = "0.9.13"
+version  = "0.9.15"
 features = ["rustls-tls"]
 default-features = false
+
+[dependencies.serde]
+version  = "1.0.90"
+features = ["derive"]
 
 [dependencies.tokio]
 version  = "0.1.18"

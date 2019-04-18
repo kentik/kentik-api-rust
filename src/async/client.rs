@@ -3,7 +3,7 @@ use futures::{Future, future::{err, Either::*}};
 use reqwest::{self, Proxy, StatusCode};
 use reqwest::r#async::{Client as HttpClient, RequestBuilder, Response};
 use reqwest::header::{CONTENT_TYPE, HeaderMap};
-use serde_derive::Deserialize;
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use crate::Error;
 use super::retry::retry;
