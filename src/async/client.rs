@@ -1,7 +1,6 @@
 use bytes::Bytes;
-use futures::{Future, future::{err, Either::*}};
 use reqwest::{self, Proxy, StatusCode};
-use reqwest::r#async::{Client as HttpClient, RequestBuilder, Response};
+use reqwest::{Client as HttpClient, RequestBuilder, Response};
 use reqwest::header::{CONTENT_TYPE, HeaderMap};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -12,7 +11,7 @@ use super::retry::retry;
 pub struct Client {
     client:   HttpClient,
     endpoint: String,
-    retries:  u64,
+    retries:  usize,
 }
 
 impl Client {
@@ -34,48 +33,54 @@ impl Client {
         })
     }
 
-    pub fn get<T: DeserializeOwned>(&self, url: &str) -> impl Future<Item = T, Error = Error> {
+    pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T, Error> {
         let url    = format!("{}{}", self.endpoint, url);
         let client = self.client.clone();
-        retry(move || send(client.get(&url)), self.retries)
+        match retry(move || send(client.get(&url)), self.retries).await {
+            Ok((value, _)) => Ok(value),
+            Err((err, _))  => Err(err),
+        }
     }
 
-    pub fn post<T: DeserializeOwned>(&self, url: &str, body: Vec<u8>) -> impl Future<Item = T, Error = Error> {
+    pub async fn post<T: DeserializeOwned>(&self, url: &str, body: Vec<u8>) -> Result<T, Error> {
         let url    = format!("{}{}", self.endpoint, url);
         let client = self.client.clone();
         let body   = Bytes::from(body);
-        retry(move || send(client.post(&url).body(body.clone())), self.retries)
+        match retry(move || send(client.post(&url).body(body.clone())), self.retries).await {
+            Ok((value, _)) => Ok(value),
+            Err((err, _))  => Err(err),
+        }
     }
 }
 
-fn send<T: DeserializeOwned>(r: RequestBuilder) -> impl Future<Item = T, Error = Error> {
+async fn send<T: DeserializeOwned>(r: RequestBuilder) -> Result<T, Error> {
     const OK:           StatusCode = StatusCode::OK;
     const UNAUTHORIZED: StatusCode = StatusCode::UNAUTHORIZED;
-    r.send().from_err::<Error>().and_then(|mut r| {
-        let status = r.status();
 
-        let error  = |mut r: Response| {
-            #[derive(Deserialize)]
-            struct Wrapper {
-                error: String,
-            }
+    let response = r.send().await?;
+    let status   = response.status();
 
-            r.json::<Wrapper>().then(move |r| err(match r {
-                Ok(w)  => Error::App(w.error, status.into()),
-                Err(_) => Error::Status(status.into()),
-            }))
-        };
-
-        let result = r.headers().get(CONTENT_TYPE).map(|v| {
-            (v.as_bytes(), status.is_success())
-        }).ok_or(status);
-
-        match result {
-            Ok((b"application/json", true)) => A(A(r.json().from_err::<Error>())),
-            Ok((_,                   true)) => B(err(Error::Empty)),
-            Err(OK)                         => B(err(Error::Empty)),
-            Err(UNAUTHORIZED)               => B(err(Error::Auth)),
-            _                               => A(B(error(r))),
+    let error = |response: Response| async {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            error: String,
         }
-    })
+
+        match response.json::<Wrapper>().await {
+            Ok(w)  => Error::App(w.error, status.into()),
+            Err(_) => Error::Status(status.into()),
+        }
+    };
+
+    let result = response.headers().get(CONTENT_TYPE).map(|v| {
+        (v.as_bytes(), status.is_success())
+    }).ok_or(status);
+
+    match result {
+        Ok((b"application/json", true)) => Ok(response.json().await?),
+        Ok((_,                   true)) => Err(Error::Empty),
+        Err(OK)                         => Err(Error::Empty),
+        Err(UNAUTHORIZED)               => Err(Error::Auth),
+        _                               => Err(error(response).await),
+    }
 }

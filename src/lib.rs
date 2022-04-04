@@ -24,8 +24,8 @@ impl Error {
     fn into_backoff(self) -> backoff::Error<Self> {
         match self {
             Error::Auth | Error::Empty => backoff::Error::Permanent(self),
-            Error::App(_, 300...499)   => backoff::Error::Permanent(self),
-            Error::Status(300...499)   => backoff::Error::Permanent(self),
+            Error::App(_, 300..=499)   => backoff::Error::Permanent(self),
+            Error::Status(300..=499)   => backoff::Error::Permanent(self),
             _                          => backoff::Error::Transient(self),
         }
     }

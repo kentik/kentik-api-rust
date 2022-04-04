@@ -3,7 +3,7 @@ mod server;
 use std::time::Duration;
 use futures::future::{self, Future};
 use serde::{Serialize, Deserialize};
-use tokio::runtime::current_thread::Runtime;
+use tokio::runtime::Builder;
 use kentik_api::{AsyncClient, Error};
 use kentik_api::core::Device;
 use server::Server;
@@ -17,7 +17,7 @@ struct Wrapper {
 fn async_status_error() {
     let (client, _server) = pair();
 
-    let mut rt = Runtime::new().unwrap();
+    let rt = Builder::new_current_thread().enable_all().enable_all().build().unwrap();
     let result = rt.block_on(client.get::<Wrapper>("/api/internal/device/404"));
 
     assert_eq!(Err(Error::Status(404)), result);
@@ -27,7 +27,7 @@ fn async_status_error() {
 fn async_app_error() {
     let (client, _server) = pair();
 
-    let mut rt  = Runtime::new().unwrap();
+    let rt  = Builder::new_current_thread().enable_all().build().unwrap();
     let result  = rt.block_on(client.get::<Wrapper>("/api/internal/device/invalid"));
     let message = "invalid device name".to_string();
 
@@ -39,7 +39,7 @@ fn async_retry_request() {
     let (client, server) = pair();
     let timeout = Duration::from_secs(1);
 
-    let mut rt = Runtime::new().unwrap();
+    let rt = Builder::new_current_thread().enable_all().build().unwrap();
     let result = rt.block_on(client.get::<Wrapper>("/api/internal/device/503"));
 
     assert_eq!("/api/internal/device/503", server.request(timeout).unwrap().path);
@@ -54,7 +54,7 @@ fn async_no_retry_on_4xx() {
     let (client, server) = pair();
 
     let timeout = Duration::from_millis(100);
-    let mut rt  = Runtime::new().unwrap();
+    let rt  = Builder::new_current_thread().enable_all().build().unwrap();
     let result  = rt.block_on(client.get::<Wrapper>("/api/internal/device/403"));
 
     assert!(server.request(timeout).is_ok());
@@ -75,10 +75,10 @@ fn async_get_device_by_name() {
 
     let path = format!("/api/internal/device/{}", device.name);
 
-    let mut rt = Runtime::new().unwrap();
-    let result = rt.block_on(client.get(&path).and_then(|w: Wrapper| {
-        future::ok(w.device)
-    }));
+    let rt = Builder::new_current_thread().enable_all().build().unwrap();
+    let result = rt.block_on(async move {
+        Result::<_, Error>::Ok(client.get::<Wrapper>(&path).await?.device)
+    });
 
     assert_eq!(Ok(device), result);
 }

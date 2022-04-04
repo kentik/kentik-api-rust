@@ -1,6 +1,7 @@
 use backoff::{ExponentialBackoff, Operation};
 use log::debug;
-use reqwest::{Client as HttpClient, StatusCode, Proxy};
+use reqwest::{StatusCode, Proxy};
+use reqwest::blocking::{Client as HttpClient, RequestBuilder, Response};
 use reqwest::header::HeaderMap;
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
@@ -68,25 +69,25 @@ fn retry<T>(mut op: impl FnMut(u64) -> Result<T, Error>, retries: u64) -> Result
     Ok(task.retry(&mut backoff)?)
 }
 
-fn send<T: DeserializeOwned>(r: reqwest::RequestBuilder) -> Result<T, Error> {
-    let mut r  = r.send()?;
-    let status = r.status();
+fn send<T: DeserializeOwned>(r: RequestBuilder) -> Result<T, Error> {
+    let response = r.send()?;
+    let status   = response.status();
 
-    let mut error = || {
+    let error = |response: Response| {
         #[derive(Deserialize)]
         struct Wrapper {
             error: String,
         }
 
-        match r.json::<Wrapper>() {
+        match response.json::<Wrapper>() {
             Ok(w)  => Error::App(w.error, status.into()),
             Err(_) => Error::Status(status.into()),
         }
     };
 
     match status {
-        _ if status.is_success() => Ok(r.json()?),
+        _ if status.is_success() => Ok(response.json()?),
         StatusCode::UNAUTHORIZED => Err(Error::Auth),
-        _                        => Err(error()),
+        _                        => Err(error(response)),
     }
 }

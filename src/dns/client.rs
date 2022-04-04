@@ -2,7 +2,6 @@ use std::mem::swap;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use crossbeam_channel::*;
-use futures::future::{ok, Future};
 use log::{debug, error};
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -39,7 +38,7 @@ impl Client {
 
 fn poll(rx: Receiver<Vec<Response>>, c: AsyncClient) -> Result<(), Error> {
     let mut buf = Vec::with_capacity(1024);
-    let mut rt  = Runtime::new()?;
+    let rt      = Runtime::new()?;
     let timeout = Duration::from_secs(1);
     let ticker  = tick(timeout);
 
@@ -64,14 +63,14 @@ fn poll(rx: Receiver<Vec<Response>>, c: AsyncClient) -> Result<(), Error> {
             let mut vec = Vec::with_capacity(bytes);
             swap(&mut buf, &mut vec);
 
-            rt.spawn(c.post("/dns", vec).then(|r| {
-                match r {
+            let client = c.clone();
+            rt.spawn(async move {
+                match client.post("/dns", vec).await {
                     Ok(()) | Err(Empty) => debug!("submitted batch"),
                     Err(App(e, _))      => error!("DNS API error {}", e),
                     Err(e)              => error!("request error {}", e),
                 }
-                ok(())
-            }));
+            });
         }
     }
 

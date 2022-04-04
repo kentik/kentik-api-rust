@@ -3,7 +3,7 @@ use std::error::Error;
 use env_logger;
 use kentik_api::client::*;
 
-fn main() -> Result<(), Box<Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
     let email    = env::var("EMAIL").expect("env var EMAIL");

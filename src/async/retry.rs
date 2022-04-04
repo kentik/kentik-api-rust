@@ -10,25 +10,21 @@ use crate::Error;
 #[derive(Default)]
 pub struct Retry {
     backoff: ExponentialBackoff,
-    retries: u64,
-    attempt: u64,
+    retries: usize,
 }
 
-pub fn retry<F: FutureFactory>(factory: F, retries: u64) -> FutureRetry<F, Retry> {
+pub fn retry<F: FutureFactory>(factory: F, retries: usize) -> FutureRetry<F, Retry> {
     FutureRetry::new(factory, Retry {
         backoff: ExponentialBackoff::default(),
         retries: retries,
-        attempt: 0,
     })
 }
 
 impl ErrorHandler<Error> for Retry {
     type OutError = Error;
 
-    fn handle(&mut self, e: Error) -> RetryPolicy<Error> {
-        self.attempt += 1;
-
-        if self.attempt > self.retries {
+    fn handle(&mut self, attempt: usize, e: Error) -> RetryPolicy<Error> {
+        if attempt > self.retries {
             return RetryPolicy::ForwardError(e);
         }
 
@@ -53,41 +49,41 @@ mod test {
     #[test]
     fn zero_retries() {
         let mut retry = retry(0);
-        assert_eq!(Stop, retry.handle(Status(503)).into());
+        assert_eq!(Stop, retry.handle(1, Status(503)).into());
     }
 
     #[test]
     fn one_retry() {
         let mut retry = retry(1);
-        assert_eq!(Wait, retry.handle(Status(503)).into());
-        assert_eq!(Stop, retry.handle(Status(503)).into());
+        assert_eq!(Wait, retry.handle(1, Status(503)).into());
+        assert_eq!(Stop, retry.handle(2, Status(503)).into());
     }
 
     #[test]
     fn two_retries() {
         let mut retry = retry(2);
-        assert_eq!(Wait, retry.handle(Status(503)).into());
-        assert_eq!(Wait, retry.handle(Status(503)).into());
-        assert_eq!(Stop, retry.handle(Status(503)).into());
+        assert_eq!(Wait, retry.handle(1, Status(503)).into());
+        assert_eq!(Wait, retry.handle(2, Status(503)).into());
+        assert_eq!(Stop, retry.handle(3, Status(503)).into());
     }
 
     #[test]
     fn ensure_retry() {
-        assert_eq!(Wait, retry(1).handle(App(String::new(), 500)).into());
-        assert_eq!(Wait, retry(1).handle(Status(500)).into());
-        assert_eq!(Wait, retry(1).handle(Timeout).into());
-        assert_eq!(Wait, retry(1).handle(Other(String::new())).into());
+        assert_eq!(Wait, retry(1).handle(0, App(String::new(), 500)).into());
+        assert_eq!(Wait, retry(1).handle(0, Status(500)).into());
+        assert_eq!(Wait, retry(1).handle(0, Timeout).into());
+        assert_eq!(Wait, retry(1).handle(0, Other(String::new())).into());
     }
 
     #[test]
     fn ensure_no_retry() {
-        assert_eq!(Stop, retry(1).handle(Auth).into());
-        assert_eq!(Stop, retry(1).handle(App(String::new(), 400)).into());
-        assert_eq!(Stop, retry(1).handle(Status(400)).into());
-        assert_eq!(Stop, retry(1).handle(Empty).into());
+        assert_eq!(Stop, retry(1).handle(0, Auth).into());
+        assert_eq!(Stop, retry(1).handle(0, App(String::new(), 400)).into());
+        assert_eq!(Stop, retry(1).handle(0, Status(400)).into());
+        assert_eq!(Stop, retry(1).handle(0, Empty).into());
     }
 
-    fn retry(retries: u64) -> Retry {
+    fn retry(retries: usize) -> Retry {
         Retry{retries, ..Default::default()}
     }
 

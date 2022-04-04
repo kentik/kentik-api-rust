@@ -11,10 +11,10 @@ use actix_web::{*, dev, web::*};
 use actix_web::http::{Method, HeaderValue};
 use actix_web::dev::{Payload, ServiceRequest, ServiceResponse};
 use actix_web::error::PayloadError;
-use bytes::Bytes;
+use bytes_old::Bytes;
 use crossbeam_channel::*;
-use futures::{Async, Future, Poll, Stream};
-use futures::future::{ok, FutureResult};
+use futures_old::{Async, Future, Poll, Stream};
+use futures_old::future::{ok, FutureResult};
 use rand::prelude::*;
 use serde::{Serialize, Deserialize};
 use kentik_api::core::{Device, Dimension};
@@ -149,7 +149,7 @@ impl<S, P, B> Service for AuthMiddleware<S> where
     type Request  = ServiceRequest<P>;
     type Response = ServiceResponse<B>;
     type Error    = Error;
-    type Future   = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future   = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
