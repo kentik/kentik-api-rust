@@ -29,8 +29,8 @@ impl ErrorHandler<Error> for Retry {
         }
 
         let e = match e.into_backoff() {
-            backoff::Error::Transient(e) => e,
-            backoff::Error::Permanent(e) => return RetryPolicy::ForwardError(e),
+            backoff::Error::Transient{err, ..} => err,
+            backoff::Error::Permanent(err)     => return RetryPolicy::ForwardError(err),
         };
 
         match self.backoff.next_backoff() {

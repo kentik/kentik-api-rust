@@ -1,7 +1,6 @@
 mod server;
 
 use std::time::Duration;
-use futures::future::{self, Future};
 use serde::{Serialize, Deserialize};
 use tokio::runtime::Builder;
 use kentik_api::{AsyncClient, Error};

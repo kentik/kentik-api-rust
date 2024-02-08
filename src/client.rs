@@ -1,4 +1,4 @@
-use backoff::{ExponentialBackoff, Operation};
+use backoff::{self, ExponentialBackoff};
 use log::debug;
 use reqwest::{StatusCode, Proxy};
 use reqwest::blocking::{Client as HttpClient, RequestBuilder, Response};
@@ -53,10 +53,9 @@ impl Client {
 }
 
 fn retry<T>(mut op: impl FnMut(u64) -> Result<T, Error>, retries: u64) -> Result<T, Error> {
-    let mut backoff = ExponentialBackoff::default();
     let mut attempt = 0;
 
-    let mut task = || op(attempt).map_err(|err| {
+    let task = || op(attempt).map_err(|err| {
         attempt += 1;
 
         if attempt >= retries {
@@ -66,7 +65,7 @@ fn retry<T>(mut op: impl FnMut(u64) -> Result<T, Error>, retries: u64) -> Result
         err.into_backoff()
     });
 
-    Ok(task.retry(&mut backoff)?)
+    Ok(backoff::retry(ExponentialBackoff::default(), task)?)
 }
 
 fn send<T: DeserializeOwned>(r: RequestBuilder) -> Result<T, Error> {

@@ -26,7 +26,7 @@ impl Error {
             Error::Auth | Error::Empty => backoff::Error::Permanent(self),
             Error::App(_, 300..=499)   => backoff::Error::Permanent(self),
             Error::Status(300..=499)   => backoff::Error::Permanent(self),
-            _                          => backoff::Error::Transient(self),
+            _                          => backoff::Error::transient(self),
         }
     }
 }
@@ -58,8 +58,8 @@ impl From<reqwest::Error> for Error {
 impl From<backoff::Error<Error>> for Error {
     fn from(err: backoff::Error<Error>) -> Self {
         match err {
-            backoff::Error::Permanent(e) => e,
-            backoff::Error::Transient(e) => e,
+            backoff::Error::Permanent(err)     => err,
+            backoff::Error::Transient{err, ..} => err,
         }
     }
 }
