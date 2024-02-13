@@ -36,7 +36,7 @@ fn send_dns_batch() {
     let interval = Duration::from_secs(1);
     let request = server.request(interval * 2).unwrap();
     let body = request.body();
-    let mut de = Deserializer::from_slice(&body);
+    let mut de = Deserializer::from_read_ref(&body);
 
     for record in records {
         assert_eq!(record, Response::deserialize(&mut de).unwrap());

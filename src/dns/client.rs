@@ -44,7 +44,7 @@ fn poll(rx: Receiver<Vec<Response>>, c: AsyncClient) -> Result<(), Error> {
 
     loop {
         let mut encode = |rs: Vec<Response>| -> Result<(), Error> {
-            let mut s = Serializer::new_named(&mut buf);
+            let mut s = Serializer::new(&mut buf).with_struct_map();
             rs.into_iter().map(|r: Response| -> Result<(), Error> {
                 Ok(r.serialize(&mut s)?)
             }).collect::<Result<_, _>>()
