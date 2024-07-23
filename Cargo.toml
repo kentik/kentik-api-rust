@@ -1,6 +1,6 @@
 [package]
 name    = "kentik-api"
-version = "0.0.6"
+version = "0.0.7"
 authors = ["Will <will@kentik.com>"]
 edition = "2018"
 
