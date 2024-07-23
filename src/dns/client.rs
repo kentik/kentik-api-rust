@@ -43,38 +43,48 @@ fn poll(rx: Receiver<Vec<Response>>, c: AsyncClient) -> Result<(), Error> {
     let ticker  = tick(timeout);
 
     loop {
-        let mut encode = |rs: Vec<Response>| -> Result<(), Error> {
-            let mut s = Serializer::new(&mut buf).with_struct_map();
-            rs.into_iter().map(|r: Response| -> Result<(), Error> {
-                Ok(r.serialize(&mut s)?)
-            }).collect::<Result<_, _>>()
-        };
-
-        match rx.recv_timeout(timeout) {
-            Ok(rs)            => encode(rs)?,
-            Err(Timeout)      => (),
+        let records = match rx.recv_timeout(timeout) {
+            Ok(records)       => records,
+            Err(Timeout)      => Vec::new(),
             Err(Disconnected) => break,
         };
 
-        let flush = ticker.try_recv().is_ok() && !buf.is_empty();
-        let bytes = buf.len();
+        for chunk in records.chunks(10_000) {
+            encode(&mut buf, chunk)?;
 
-        if flush || bytes >= 1_000_000 {
-            let mut vec = Vec::with_capacity(bytes);
-            swap(&mut buf, &mut vec);
+            if buf.len() >= 10_000_000 {
+                send(&rt, &c, &mut buf);
+            }
+        }
 
-            let client = c.clone();
-            rt.spawn(async move {
-                match client.post("/dns", vec).await {
-                    Ok(()) | Err(Empty) => debug!("submitted batch"),
-                    Err(App(e, _))      => error!("DNS API error {}", e),
-                    Err(e)              => error!("request error {}", e),
-                }
-            });
+        if ticker.try_recv().is_ok() && !buf.is_empty() {
+            send(&rt, &c, &mut buf);
         }
     }
 
     Ok(())
+}
+
+fn encode(buf: &mut Vec<u8>, rs: &[Response]) -> Result<(), Error> {
+    let mut s = Serializer::new(buf).with_struct_map();
+    rs.iter().map(|r| {
+        Ok(r.serialize(&mut s)?)
+    }).collect::<Result<_, _>>()
+}
+
+fn send(rt: &Runtime, client: &AsyncClient, buf: &mut Vec<u8>) {
+    let mut vec = Vec::with_capacity(buf.len());
+    swap(buf, &mut vec);
+
+    let client = client.clone();
+
+    rt.spawn(async move {
+        match client.post("/dns", vec).await {
+            Ok(()) | Err(Empty) => debug!("submitted batch"),
+            Err(App(e, _))      => error!("DNS API error {}", e),
+            Err(e)              => error!("request error {}", e),
+        }
+    });
 }
 
 impl From<rmp_serde::encode::Error> for Error {
