@@ -6,25 +6,25 @@ edition = "2018"
 
 [dependencies]
 backoff           = "0.4.0"
-bytes             = "1.5.0"
-crossbeam-channel = "0.5.11"
+bytes             = "1.6.1"
+crossbeam-channel = "0.5.13"
 futures           = "0.3.30"
 futures-retry     = "0.6.0"
-log               = "0.4.20"
+log               = "0.4.22"
 rmp-serde         = "1.1.2"
-serde_bytes       = "0.11.14"
+serde_bytes       = "0.11.15"
 
 [dependencies.reqwest]
-version  = "0.11.24"
+version  = "0.12.5"
 features = ["blocking", "json", "rustls-tls"]
 default-features = false
 
 [dependencies.serde]
-version  = "1.0.196"
+version  = "1.0.204"
 features = ["derive"]
 
 [dependencies.tokio]
-version  = "1.36.0"
+version  = "1.38.1"
 features = ["rt-multi-thread"]
 default-features = false
 
