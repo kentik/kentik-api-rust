@@ -18,6 +18,8 @@ pub struct Question {
     pub name: String,
     #[serde(rename = "Host", with = "serde_bytes")]
     pub host: Vec<u8>,
+    #[serde(rename = "Port")]
+    pub port: u16,
 }
 
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
