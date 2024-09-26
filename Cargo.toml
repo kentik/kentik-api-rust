@@ -23,6 +23,10 @@ default-features = false
 version  = "1.0.204"
 features = ["derive"]
 
+[dependencies.smallvec]
+version  = "1.13.2"
+features = ["serde"]
+
 [dependencies.tokio]
 version  = "1.38.1"
 features = ["rt-multi-thread"]
